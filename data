@@ -1,1 +1,636 @@
 
+######S0 quantitation
+setwd("D:/Rdata/test")
+library(pracma)
+peakarea = function(mydf = mydf, ranges = ranges, npeaks = 1, threshold = threshold, nups = nups) {
+    rawdata = mydf
+    mydf = as.data.frame(mydf)        
+    data1 = mydf[,ranges]
+    data1$lable = 0    
+    n = nrow(data1)  
+    m = ncol(data1)    
+    ramanshift = as.numeric(colnames(data1[,-m])) 
+    x = data.frame(hight=0,peak=0,L=0,R=0,A=0,peaknumber=0,index=0)
+    x = x[-1,]
+    for(i in 1:n){
+        rname = rownames(data1)[i]
+        y = as.numeric(data1[i,-m])
+        fp = findpeaks(as.numeric(data1[i,-m]), nups = nups, npeaks = npeaks, threshold = threshold, sortstr = TRUE) 
+        k = as.numeric(dim(fp)[1])
+        if(is.null(fp)){
+            data1$lable[i] = 0                                                 
+            }else if(!is.null(fp)){
+                data1$lable[i] = k   
+                hight = peak = L = R = peaknumber = A = index = vector()
+                for(j in 1:dim(fp)[1]) {                           
+                peaknumber[j] = j
+                index[j] = rname
+                hight[j] = fp[j,1]
+                peak[j] = ramanshift[fp[j,2]]
+                L[j] = ramanshift[fp[j,3]]
+                R[j] = ramanshift[fp[j,4]]
+                v = fp[j,3]:fp[j,4]
+                x1 = ramanshift[v]
+                y1 = y[v]
+                A[j] = abs(polyarea(x1,y1))              
+                }      
+                cfp = data.frame(hight,peak,L,R,A,peaknumber,index)
+                x = rbind(x,cfp)        
+                }
+                }
+    rownumber = match(x$index,rownames(data1))            
+    peaksite = round(mean(x$peak))    
+    peak_na_mean = mean(as.numeric(data1[-rownumber,which(colnames(data1) == peaksite)]))  
+    na = c(which(x$R <= mean(x$peak)),which(x$L >= mean(x$peak)),which(x$high <= peak_na_mean))     
+    x = x[-na,]
+    rownumber = match(x$index,rownames(data1))
+    ranges = 1:4  #1:4代表除变量之外的所有列    
+    ranges2 = max(ranges)+1:ncol(x)
+    mydf2 = mydf[rownumber,ranges] 
+    x = cbind(mydf2,x)
+    peakdata = mydf[rownumber,]
+    peak_na_data = mydf[-rownumber,]                                   
+    p_all = as.data.frame(matrix(0, nrow(rawdata), ncol(x)))
+    colnames(p_all) = colnames(x)
+    p_all[,ranges] = rawdata[,ranges]
+    p_all[rownumber,ranges2] = x[,ranges2]
+    p_all$peaknumber = x$peaknumber[1]
+    p_all$index = rownames(rawdata)
+    peaks = list(peaks = x, peakdata = peakdata, peak_na_data = peak_na_data, rawdata = rawdata, p_all = p_all)
+    return(peaks)       
+    }
+trans2 <- function(x = x, y = y){   #x:数据
+        n = factor(x$rid)
+        ngroup = nlevels(n)        
+        m = factor(x$cid)
+        mgroup = nlevels(m)
+        mapdata = data.frame(matrix(NA, ngroup, mgroup))
+        rownames(mapdata) = 1:ngroup
+        colnames(mapdata) = 1:mgroup       
+        y = y
+        k = which(colnames(x)==y)
+        mdf = x[,k]
+        for(i in 1:ngroup){
+                      id = which(as.numeric(x$rid) == i)
+                      mapdata[i,] = mdf[id]
+                      }
+        return(mapdata)
+      }
+
+filestemp <- list.files(getwd(), pattern = "csv$") 
+data1 = read.table(file = filestemp,header = 1, sep =",")
+data1 = data1[,-1]
+colname1 = colnames(data1)
+colname2 = colname1[5:length(colname1)]
+colname2 = round(as.numeric(substr(colname2, 2,1000L)))
+colnames(data1)= c(colname1[1:4],colname2)
+####p2
+ranges2 = as.numeric(which(colnames(data1)==185):which(colnames(data1)==253)) #219峰面积
+p2 = peakarea (mydf = data1, ranges = ranges2, threshold = 0, nups = 5)
+p217 = p2$p_all
+p217$peaknumber = 2
+write.csv(p217, file = "p217.csv")
+mapdata_aera <- trans2(x = p217, y = "A")
+write.csv(mapdata_aera, file = "mapdata-aera.csv") 
+
+library(hyperSpec)
+spc <- mapdata_aera
+clusters <- rep(c("Thiophaeococcus mangrovi"),nrow(spc))
+spc <- spc[,-1]
+spc <- as.matrix(spc)
+wav <- as.numeric(colnames(spc))*2
+dis <- c(1:nrow(spc))*2
+  raman <- new("hyperSpec",data = data.frame(culsters=clusters, dis = dis), spc =spc, wavelength = wav,   label = list(spc="Distance(um)",.wavelength = "Distance(um)"))
+pdf(h=4, w=4.2, "mapdata_aera.pdf",useDingbats=FALSE)
+plotmat (raman, raman$dis, ylab = "Distance(um)", col = hm_col_scale)
+dev.off() 
+##############################################################
+library(ggplot2)
+library(easyGgplot2)  #library(devtools); install_github( "kassambara/easyGgplot2")
+
+setwd("d:/rdata/test")
+
+mydf1 = read.table(file = "p2-1-content.csv", header = 1, sep = ",")
+mydf2 = read.table(file = "p2-2-content.csv", header = 1, sep = ",")
+mydf3 = read.table(file = "p2-3-content.csv", header = 1, sep = ",")
+mydf1 = mydf1[,-1]; data1 = mydf1[which(mydf1$S == "TRUE"),]
+mydf2 = mydf2[,-1]; data2 = mydf2[which(mydf2$S == "TRUE"),]
+mydf3 = mydf3[,-1]; data3 = mydf3[which(mydf3$S == "TRUE"),]
+xmax = max(max(data1$content), max(data2$content), max(data3$content))
+n = 19
+bin = round(xmax/(n+1), 2)
+p1 = ggplot(data1, aes(x = content, color = day, fill = day))+
+     geom_histogram(alpha = 0.7, breaks = seq(0, xmax, by = bin))+
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8)
+     )+
+     facet_wrap(~group)
+p2 = ggplot(data2, aes(x = content, color = day, fill = day))+
+     geom_histogram(alpha = 0.7, breaks = seq(0, xmax, by = bin))+
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8)
+     )+
+     facet_wrap(~group)
+p3 = ggplot(data3, aes(x = content, color = day, fill = day))+
+     geom_histogram(alpha = 0.7, breaks = seq(0, xmax, by = bin))+
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8)
+     )+
+     facet_wrap(~group)
+res1 = ggplot_build(p1)
+res2 = ggplot_build(p2)
+res3 = ggplot_build(p3)
+histdata1 = res1$data[[1]]
+histdata2 = res2$data[[1]]
+histdata3 = res3$data[[1]]
+m = nrow(histdata1)/max(as.numeric(histdata1$PANEL))
+group1 = rep(levels(droplevels(factor(data1$group))), each = m)    #25来自(xmax/26)
+group2 = rep(levels(droplevels(factor(data2$group))), each = m)
+group3 = rep(levels(droplevels(factor(data3$group))), each = m)
+histdata1$group =  group1
+histdata2$group =  group2
+histdata3$group =  group3
+group = Reduce(union, list(group1, group2, group3))
+plotdf = data.frame(matrix(0, length(group)*m, ncol(histdata1)))
+colnames(plotdf) = colnames(histdata1)   
+plotdf$group = rep(sort(group, decreasing = F), each = m)
+
+plotdf$x = rep(histdata1$x[1:m], times = length(group))
+plotdf$xmin =  rep(histdata1$xmin[1:m], times = length(group))
+plotdf$xmax =  rep(histdata1$xmax[1:m], times = length(group))
+
+index1 = match(plotdf$group, histdata1$group)
+index2 = match(plotdf$group, histdata2$group)
+index3 = match(plotdf$group, histdata3$group)
+plotdf1 = plotdf2 = plotdf3 = plotdf
+plotdf1[which(!is.na(index1)),] = histdata1
+plotdf2[which(!is.na(index2)),] = histdata2
+plotdf3[which(!is.na(index3)),] = histdata3
+
+day = substring(plotdf1$group, 1, 2)
+num = substring(plotdf1$group, 4, 4)
+final = data.frame(group = plotdf$group, day = day, num = num, x = plotdf$x, xmin = plotdf$xmin, xmax = plotdf$xmax, y1 = plotdf1$count, y2 = plotdf2$count, y3 = plotdf3$count)
+means = apply(final[,which(colnames(final) == "y1"):which(colnames(final) == "y3")], 1, mean)
+SD = apply(final[,which(colnames(final) == "y1"):which(colnames(final) == "y3")], 1, sd)
+final = cbind(final, means, SD)
+write.csv(final, file = "finaldata.csv")
+write.csv(plotdf1, file = "plotdf1.csv")
+write.csv(plotdf2, file = "plotdf2.csv")
+write.csv(plotdf3, file = "plotdf3.csv")
+
+final2 = read.table(file = "finaldata.csv", header = 1, sep = ",")
+final2 = final2[, -1]
+#library(RColorBrewer)
+#show hexadecimal color
+# display.brewer.pal(n = 9, name = 'Set1')
+# g = brewer_pal(type="seq", palette="Set1")
+# g(9)
+histogram_p217_all <- ggplot(final2, aes(x = x, y = means, color = day, fill = day))+      
+     geom_bar(position = position_dodge(), stat= "identity", 
+             colour="black", # Use black outlines,
+             size = .2) +         
+     scale_fill_manual(values=c("#FF7F00","#E41A1C", "#377EB8", "#4DAF4A", "#984EA3")) + 
+     geom_errorbar(aes(ymin = means, ymax = means+SD),
+             colour=rep("black", nrow(final2)), # Use black outlines,
+             size = .2,
+             width = .2,  # Width of the error bars
+             position=position_dodge(.9))+
+     coord_cartesian(xlim =c(0, 5)) +    # ylim = c(0, 30)
+     theme_bw() +
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8),
+     panel.grid.major = element_blank(),
+     panel.grid.minor = element_blank()
+     )+
+     xlab("S0 content (pg)") +  ylab("Counts") +
+     facet_wrap(~group, nrow = 5)
+ggsave("histogram_p217_all.pdf", histogram_p217_all, width=5, height=8, useDingbats=FALSE)
+dev.off()
+
+#将control 和实验组分开出图
+control =  which(final2$num == "3")    #对照组
+final_control = final2[control,]
+final_d0 = final2[which(final2$day == "d0"),]
+final_control = rbind(final_d0,final2[control,])
+
+histogram_p217_control <- ggplot(final_control, aes(x = x, y = means))+      
+     geom_bar(aes(fill="blue"),
+              position = position_dodge(), stat= "identity", 
+              colour="black", # Use black outlines,
+              size = .2) +
+     scale_fill_manual(values=c("#FF7F00")) +         
+     geom_errorbar(aes(ymin = means, ymax = means+SD),
+             colour=rep("black", nrow(final_control)), # Use black outlines,
+             size = .2,
+             width = .2,  # Width of the error bars
+             position=position_dodge(.9))+
+     coord_cartesian(xlim =c(0, 5),ylim = c(0,30)) + 
+     theme_bw() +
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8),
+     panel.grid.major = element_blank(),
+     panel.grid.minor = element_blank()
+     )+
+     xlab("S0 content (pg)") +  ylab("Counts") +
+     facet_wrap(~group, ncol = 4)
+ggsave("histogram_p217_control.pdf", histogram_p217_control, width=6, height=1.8, useDingbats=FALSE)
+
+final_test =  final2[-control,]
+final_test = final_test[-which(final_test$day == "d0"),]    #去除对照和转接前
+histogram_p217_test <- ggplot(final_test, aes(x = x, y = means, color = day, fill = day))+      
+     geom_bar(position = position_dodge(), stat= "identity", 
+             colour="black", # Use black outlines,
+             size = .2) +         
+     geom_errorbar(aes(ymin = means, ymax = means+SD),
+             colour=rep("black", nrow(final_test)), # Use black outlines,
+             size = .2,
+             width = .2,  # Width of the error bars
+             position=position_dodge(.9))+
+     scale_fill_brewer(palette = "Set1") +
+     coord_cartesian(xlim =c(0, 5)) + 
+     theme_bw() +
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8),
+     panel.grid.major = element_blank(),
+     panel.grid.minor = element_blank()
+     )+
+     xlab("S0 content (pg)") +  ylab("Counts") +
+     facet_wrap(~group, ncol = 3)
+ggsave("histogram_p217_test.pdf", histogram_p217_test, width=5, height=6, useDingbats=FALSE)
+
+############################################################
+library(ggplot2)
+library(easyGgplot2)
+
+setwd("d:/rdata/test")
+
+
+mydf1 = read.table(file = "T. mangrovi-p2.csv", header = 1, sep = ",")
+mydf2 = read.table(file = "Thiocapsa marina-p2.csv", header = 1, sep = ",")
+mydf3 = read.table(file = "Thiorhodococcus mannitoliphagus-p2.csv", header = 1, sep = ",")
+mydf1 = mydf1[,-1]; data1 = mydf1[which(mydf1$S == "TRUE"),]
+mydf2 = mydf2[,-1]; data2 = mydf2[which(mydf2$S == "TRUE"),]
+mydf3 = mydf3[,-1]; data3 = mydf3[which(mydf3$S == "TRUE"),]
+
+xmax = max(max(data1$AA), max(data2$AA), max(data3$AA))
+n = 19
+bin = round(xmax/(n+1), 2)
+pdf("histogram_p217_test.pdf", width=3, height=3, useDingbats=FALSE)
+   ggplot(data1, aes(x = AA, fill = day))+
+     geom_histogram(alpha = 0.7, breaks = seq(0, xmax, by = bin), color = "black")+
+     scale_fill_manual(values=c("#ff8000")) +         #Firebrick3
+     theme_bw() +
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8),
+     panel.grid.major = element_blank(),
+     panel.grid.minor = element_blank()
+     )+
+     facet_wrap(~group)
+   ggplot(data2, aes(x = AA,  fill = day))+
+     geom_histogram(alpha = 0.7, breaks = seq(0, xmax, by = bin), color = "black")+
+     scale_fill_manual(values=c("#0f99b2")) +          #seagreen
+     theme_bw() +
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8),
+     panel.grid.major = element_blank(),
+     panel.grid.minor = element_blank()
+     )+
+     facet_wrap(~group)
+   ggplot(data3, aes(x = AA, fill = day))+
+     geom_histogram(alpha = 0.85, breaks = seq(0, xmax, by = bin), color = "black")+
+     scale_fill_manual(values=c("#c000c0")) +        #steelblue
+     theme_bw() +
+     theme(
+     legend.position="none",
+     panel.spacing = unit(0.1, "lines"),
+     strip.text.x = element_text(size = 8),
+     panel.grid.major = element_blank(),
+     panel.grid.minor = element_blank()
+     )+
+     facet_wrap(~group)
+dev.off()
+
+#################gene expression data, removing outliers
+library(ggplot2)
+library("RColorBrewer")
+ setwd("d:/rdata/test")
+ sgp = read.table(file = "sgpABC expression.csv", header = 1, sep = ",")
+ sgpB = sgp[which(sgp$genes == "sgpB"),]
+ sgpC = sgp[which(sgp$genes == "sgpC"),]
+ sgpA = sgp[which(sgp$genes == "sgpA"),]
+
+pA <- ggplot(data = sgpA, aes(x = day, y = relative_ct, fill = condition)) + 
+      geom_boxplot(linetype="dashed")+
+      scale_fill_brewer(palette = "Set1")+      
+      stat_boxplot(aes(ymin=..lower..,ymax=..upper..))+      
+      stat_boxplot(geom = "errorbar",
+               aes(ymin = ..ymax..), width = 0.2, size = .3) +
+      stat_boxplot(geom = "errorbar",
+               aes(ymax = ..ymin..), width = 0.2, size = .3) +
+      theme_classic() +       
+      theme(text = element_text(size = 18), 
+          axis.text.x = element_text(size = 18), 
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "top")+
+      xlab("Day") +  ylab("relative_ct")
+pB <- ggplot(data = sgpB, aes(x = day, y = relative_ct, fill = condition)) + 
+      geom_boxplot(linetype="dashed")+
+      scale_fill_brewer(palette = "Set1")+      
+      stat_boxplot(aes(ymin=..lower..,ymax=..upper..))+      
+      stat_boxplot(geom = "errorbar",
+               aes(ymin = ..ymax..), width = 0.2, size = .3) +
+      stat_boxplot(geom = "errorbar",
+               aes(ymax = ..ymin..), width = 0.2, size = .3) +
+      theme_classic() +       
+      theme(text = element_text(size = 18), 
+          axis.text.x = element_text(size = 18), 
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "top")+
+      xlab("Day") +  ylab("relative_ct")
+pC <- ggplot(data = sgpC, aes(x = day, y = relative_ct, fill = condition)) + 
+      geom_boxplot(linetype="dashed")+
+      scale_fill_brewer(palette = "Set1")+      
+      stat_boxplot(aes(ymin=..lower..,ymax=..upper..))+      
+      stat_boxplot(geom = "errorbar",
+               aes(ymin = ..ymax..), width = 0.2, size = .3) +
+      stat_boxplot(geom = "errorbar",
+               aes(ymax = ..ymin..), width = 0.2, size = .3) +
+      theme_classic() +       
+      theme(text = element_text(size = 18), 
+          axis.text.x = element_text(size = 18), 
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "top")+
+      xlab("Day") +  ylab("relative_ct")
+
+ pdf("sgpABC relative_ct boxplot.pdf", width=5, height=3, useDingbats=FALSE)
+ pA
+ pB
+ pC
+ dev.off()
+
+psgpA[["out"]]
+psgpB[["out"]]
+psgpC[["out"]] 
+match(psgpA$out,sgpA$relative_ct)
+match(psgpB$out,sgpB$relative_ct)
+match(psgpC$out,sgpC$relative_ct)
+
+pA <- ggplot(data = sgpA, aes(x = day, y = relative_expression, fill = condition)) + 
+      geom_boxplot(linetype="dashed")+
+      scale_fill_brewer(palette = "Set1")+      
+      stat_boxplot(aes(ymin=..lower..,ymax=..upper..))+      
+      stat_boxplot(geom = "errorbar",
+               aes(ymin = ..ymax..), width = 0.2, size = .3) +
+      stat_boxplot(geom = "errorbar",
+               aes(ymax = ..ymin..), width = 0.2, size = .3) +
+      theme_classic() +       
+      theme(text = element_text(size = 18), 
+          axis.text.x = element_text(size = 18), 
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "top")+
+      xlab("Day") +  ylab("Relative expression")
+pB <- ggplot(data = sgpB, aes(x = day, y = relative_expression, fill = condition)) + 
+      geom_boxplot(linetype="dashed")+
+      scale_fill_brewer(palette = "Set1")+      
+      stat_boxplot(aes(ymin=..lower..,ymax=..upper..))+      
+      stat_boxplot(geom = "errorbar",
+               aes(ymin = ..ymax..), width = 0.2, size = .3) +
+      stat_boxplot(geom = "errorbar",
+               aes(ymax = ..ymin..), width = 0.2, size = .3) +
+      theme_classic() +       
+      theme(text = element_text(size = 18), 
+          axis.text.x = element_text(size = 18), 
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "top")+
+      xlab("Day") +  ylab("Relative expression")
+pC <- ggplot(data = sgpC, aes(x = day, y = relative_expression, fill = condition)) + 
+      geom_boxplot(linetype="dashed")+
+      scale_fill_brewer(palette = "Set1")+      
+      stat_boxplot(aes(ymin=..lower..,ymax=..upper..))+      
+      stat_boxplot(geom = "errorbar",
+               aes(ymin = ..ymax..), width = 0.2, size = .3) +
+      stat_boxplot(geom = "errorbar",
+               aes(ymax = ..ymin..), width = 0.2, size = .3) +
+      theme_classic() +       
+      theme(text = element_text(size = 18), 
+          axis.text.x = element_text(size = 18), 
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "top")+
+      xlab("Day") +  ylab("Relative expression")
+
+ pdf("sgpABC relative_expression boxplot.pdf", width=5, height=3, useDingbats=FALSE)
+ pA
+ pB
+ pC
+ dev.off()
+
+psgpA[["out"]]
+psgpB[["out"]]
+psgpC[["out"]]
+####
+match(psgpA$out,sgpA$relative_expression)
+match(psgpB$out,sgpB$relative_expression)
+match(psgpC$out,sgpC$relative_expression)
+
+######################  loading Raman and gene data
+raman_gene = read.table(file = "raman-gene-same threshold.csv", header = 1, sep = ",")  #train
+raman_newdata =  read.table(file = "raman-gene newdata.csv", header = 1, sep = ",")     #test
+######################### Raman~sgpA + sgpB + sgpC  predicted value 
+fit = lm(Raman ~ sgpA + sgpB + sgpC, data = raman_gene)
+summary(fit)   
+
+##################检验离群点
+plot(x=fitted(fit),y=rstudent(fit)) 
+abline(h=3,col="red",lty=3)    #setting 95% confidence interval(abs = 2)，The higher the confidence level, the wider the confidence interval. 99.7%confidence interval (abs = 3)
+which(abs(rstudent(fit))>3)
+rstandard(fit)
+
+library(ggplot2)
+fitdata = data.frame(Raman_fitted = fitted(fit), Raman_rstudent = rstudent(fit))
+pdf("outlierplot.pdf", width=4, height=2.5, useDingbats=FALSE)
+ggplot(fitdata, aes(x = Raman_fitted, y = Raman_rstudent)) +
+geom_point(shape = 21, fill = "steelblue", color = "black",size = 3)  +
+geom_hline(yintercept = 3, linetype=2, color='Firebrick3',size=0.7) +      
+geom_hline(yintercept = -3, linetype=2, color='Firebrick3',size=0.7) +
+theme_linedraw()+
+theme( panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank()
+       )              # Line types in R The different line types available in R software are : “blank”, “solid”, “dashed”, “dotted”, “dotdash”, “longdash”, “twodash”. Note that, line types can be also specified using numbers : 0, 1, 2, 3, 4, 5, 6. 0 is for “blank”, 1 is for “solid”, 2 is for “dashed”, …. 
+dev.off()
+#####################
+coefficient = fit$coefficients
+write.csv(coefficient, file = "Raman-gene-coef.csv")
+ramanfit = cbind(raman_gene, fitted(fit))
+colnames(ramanfit) = c(dimnames(raman_gene)[[2]], "Ramanfit")
+
+################## Raman~sgpABC   predicted value
+lmRaman = lm(Raman ~ sgp, data = ramanfit)
+p_pred <- predict(lmRaman,interval="prediction")
+p_pred = as.data.frame(p_pred)
+presgp = predict(lmRaman, interval="prediction", newdata = data.frame(sgp = c(raman_newdata[,6])))
+p_pred = rbind(p_pred, presgp)
+p_pred$Raman = c(ramanfit$Raman, raman_newdata$Raman)
+p_pred = p_pred[order(p_pred$fit),]
+index = match(raman_newdata$Raman, p_pred$Raman)
+
+pdf("raman-sgpABC predicted.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$Raman[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+matlines(p_pred$fit, p_pred$fit,col = "black", type = "l")
+matlines(p_pred$fit, p_pred[, c("lwr","upr")], col="steelblue", lty=3, type="b", pch= "+")
+matpoints(p_pred$fit[index][1], p_pred$Raman[index][1],pch = 15,col="Firebrick3")  #JCM14889
+matpoints(p_pred$fit[index][2], p_pred$Raman[index][2],pch = 17,col="seagreen")    #DSM5653
+matpoints(p_pred$fit[index][3], p_pred$Raman[index][3],pch = 16,cex = 1.2, col="steelblue")   #DSM18266
+dev.off()
+write.csv(p_pred, file = "raman-sgpABC_pred.csv")
+
+######################  sgpABC ~ Raman
+lmgene = lm(lm(sgp ~ Raman, data = ramanfit))
+summary(lmgene)
+p_pred <- predict(lmgene,interval="prediction")
+p_pred = as.data.frame(p_pred)
+pregene = predict(lmgene, interval="prediction", newdata = data.frame(Raman = c(raman_newdata[,2])))
+p_pred = rbind(p_pred, pregene)
+p_pred$gene = c(ramanfit$sgp, raman_newdata$sgp)
+p_pred = p_pred[order(p_pred$fit),]
+index = match(raman_newdata$sgp, p_pred$gene)
+
+pdf("sgpABC gene-raman predicted.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$gene[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+matlines(p_pred$fit, p_pred$fit,col = "black", type = "l")
+matlines(p_pred$fit, p_pred[, c("lwr","upr")], col="steelblue", lty=3, type="b", pch= "+")
+matpoints(p_pred$fit[index][1], p_pred$gene[index][1],pch = 15,col="Firebrick3")  #JCM14889
+matpoints(p_pred$fit[index][2], p_pred$gene[index][2],pch = 17, col="seagreen")   #DSM5653
+matpoints(p_pred$fit[index][3], p_pred$gene[index][3],pch = 16,cex = 1.2, col="steelblue")   #DSM18266
+dev.off()
+write.csv(p_pred, file = "sgpABC gene-raman_pred.csv")
+
+pdf("sgpABC-raman fit.pdf", width=4, height=2.5, useDingbats=FALSE)
+ggplot(ramanfit,aes(y=sgp,x=Raman))+
+  geom_point(colour = "black", size=3) +
+  geom_smooth(method="lm")
+dev.off()
+
+pdf("sgpABC gene-raman predicted-line.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$gene[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+dev.off()
+
+pdf("sgpABC gene-raman predicted-confidence.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$gene[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+matlines(p_pred$fit, p_pred$fit,col = "black", type = "l")
+matlines(p_pred$fit[-index], p_pred[-index, c("lwr","upr")], col="steelblue", lty=3, type="b", pch= "+")
+dev.off()
+
+pdf("sgpABC gene-raman predicted-JCM14889.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$gene[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+matlines(p_pred$fit, p_pred$fit,col = "black", type = "l")
+matlines(p_pred$fit[-index[2:3]], p_pred[-index[2:3], c("lwr","upr")], col="steelblue", lty=3, type="b", pch= "+")
+matpoints(p_pred$fit[index][1], p_pred$gene[index][1],pch = 15,col="Firebrick3")
+dev.off()
+
+pdf("sgpABC gene-raman predicted-JCM14889-DSM5653.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$gene[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+matlines(p_pred$fit, p_pred$fit,col = "black", type = "l")
+matlines(p_pred$fit[-index[3]], p_pred[-index[3], c("lwr","upr")], col="steelblue", lty=3, type="b", pch= "+")
+matpoints(p_pred$fit[index][1], p_pred$gene[index][1],pch = 15,col="Firebrick3")
+matpoints(p_pred$fit[index][2], p_pred$gene[index][2],pch = 17,col="seagreen")
+dev.off()
+
+pdf("sgpABC gene-raman predicted-JCM14889-DSM5653-DSM18266.pdf", width=4, height=4, useDingbats=FALSE)
+matplot(x = p_pred$fit[-index], y = p_pred$gene[-index], xlim = c(min(p_pred$fit), max(p_pred$fit)), ylim= c(min(p_pred$lwr), max(p_pred$upr)), col = "black", type = "p", pch = 19, xlab = "Predicted", ylab = "Ture")
+matlines(p_pred$fit, p_pred$fit,col = "black", type = "l")
+matlines(p_pred$fit, p_pred[, c("lwr","upr")], col="steelblue", lty=3, type="b", pch= "+")
+matpoints(p_pred$fit[index][1], p_pred$gene[index][1],pch = 15,col="Firebrick3")
+matpoints(p_pred$fit[index][2], p_pred$gene[index][2],pch = 17,col="seagreen")
+matpoints(p_pred$fit[index][3], p_pred$gene[index][3],pch = 16,cex = 1.2, col="steelblue")   #DSM18266
+dev.off()
+
+#################### gene ~ Raman
+pdf("sgp-raman fit.pdf", width=4, height=2.5, useDingbats=FALSE)
+ggplot(raman_gene,aes(y=sgpA,x=Raman))+
+  geom_point(colour = "black", size=3) +
+  geom_smooth(method="lm")
+
+ggplot(raman_gene,aes(y=sgpB,x=Raman))+
+  geom_point(colour = "#B2182B", size=3) +
+  geom_smooth(method="lm") 
+
+ggplot(raman_gene,aes(y=sgpC,x=Raman)) +
+  geom_point(colour = "orange3", size=3) +      
+  geom_smooth(method="lm")        # "#2166AC"
+
+ggplot(raman_gene,aes(y=sgp,x=Raman)) +
+  geom_point(colour = "seagreen", size=3)+
+  geom_smooth(method="lm")
+dev.off()
+
+fitsgpA = lm(sgpA ~ Raman, data = raman_gene)
+summary(fitsgpA)
+
+fitsgpB = lm(sgpB ~ Raman, data = raman_gene)
+summary(fitsgpB)
+
+fitsgpC = lm(sgpC ~ Raman, data = raman_gene)
+summary(fitsgpC)
+
+fitsgps = lm(sgp ~ Raman, data = raman_gene)
+summary(fitsgps)
+
+
+################################
+####Python
+import cv2
+import numpy as np
+import pandas as pd
+import math
+from google.colab.patches import cv2_imshow
+
+
+img = cv2.imread('20220605-42_C002.tif')
+ori_img = img.copy()
+
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+clahe = cv2.createCLAHE(clipLimit = 2.0, tileGridSize=(3, 3))
+claheNorm = clahe.apply(gray)
+
+blurred = cv2.GaussianBlur(claheNorm, (3, 3), 0)
+#ret, th4=cv2.threshold(blurred ,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
+th3 = cv2.adaptiveThreshold(blurred,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C , cv2.THRESH_BINARY_INV,127,64)
+#th4 = cv2.adaptiveThreshold(blurred,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C , cv2.THRESH_BINARY,53,50)
+cv2_imshow(th3)
+mask = th3.copy()
+des = cv2.bitwise_not(mask)
+contour,hier = cv2.findContours(des,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+contour = [c for c in contour if 1<cv2.contourArea(c) <500]
+n_id = 0
+diameter = []
+
+for cnt in contour:
+    cv2.drawContours(des,[cnt],0,255,-1)
+    (x,y),radius = cv2.minEnclosingCircle(cnt)
+    diameter.append(radius)
+    center = (int(x),int(y))
+    #cv2.putText(ori_img,str(n_id),center,cv2.FONT_HERSHEY_SIMPLEX,0.3,(0,255,0),1)
+    n_id +=1       
+    radius = int(radius)
+    
+    cv2.circle(ori_img,center,radius,(0,0,255), 1, lineType=cv2.LINE_AA)
+pd.DataFrame({"radius":diameter}).to_csv("radius.csv")
+cv2.imwrite("radius.tif", ori_img)
+cv2_imshow(ori_img)
